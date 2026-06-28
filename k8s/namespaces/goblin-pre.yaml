@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: goblin-pre
+  labels:
+    app.kubernetes.io/part-of: goblin-platform
+    goblin.dev/environment: pre

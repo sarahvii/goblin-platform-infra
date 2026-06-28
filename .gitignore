@@ -1,0 +1,25 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Secrets and credentials
+.env
+.env.*
+*.key
+*.pem
+*.p12
+kubeconfig
+*.kubeconfig
+*-kubeconfig
+service-account*.json
+*credentials*.json
+
+# macOS
+.DS_Store
