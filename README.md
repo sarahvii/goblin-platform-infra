@@ -154,3 +154,9 @@ Do not commit:
 * `.tfvars` files containing real values
 * cloud service account keys
 * personal hostnames, usernames, or local network details
+
+## Branching strategy
+
+Goblin Platform Infra uses a pull-request based branching workflow.
+
+See [docs/branching-strategy.md](docs/branching-strategy.md).
