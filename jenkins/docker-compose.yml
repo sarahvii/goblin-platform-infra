@@ -1,8 +1,5 @@
 services:
   jenkins:
-    build:
-      context: .
-      dockerfile: Dockerfile
     image: goblin-jenkins:local
     container_name: goblin-jenkins
     restart: unless-stopped
