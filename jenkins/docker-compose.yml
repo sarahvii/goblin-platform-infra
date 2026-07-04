@@ -15,8 +15,8 @@ services:
     volumes:
       - jenkins_home:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
-      - ${GOBLIN_OBSERVATORY_REPO:-/home/sarah/goblin-observatory}:/workspace/goblin-observatory
-      - ${GOBLIN_DOCKER_CONFIG:-/home/sarah/.docker}:/root/.docker:ro
+      - ${GOBLIN_OBSERVATORY_REPO:?Set GOBLIN_OBSERVATORY_REPO to the host repository path}:${GOBLIN_OBSERVATORY_CONTAINER_PATH:?Set GOBLIN_OBSERVATORY_CONTAINER_PATH to the path used by live jobs}
+      - ${GOBLIN_DOCKER_CONFIG:?Set GOBLIN_DOCKER_CONFIG to the host Docker config path}:/root/.docker:ro
 
     environment:
       - JENKINS_OPTS=--prefix=/jenkins
