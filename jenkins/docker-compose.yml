@@ -1,0 +1,27 @@
+services:
+  jenkins:
+    image: goblin-jenkins:local
+    container_name: goblin-jenkins
+    restart: unless-stopped
+    user: root
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    ports:
+      - "8081:8080"
+      - "50000:50000"
+
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${GOBLIN_OBSERVATORY_REPO:-/home/sarah/goblin-observatory}:/workspace/goblin-observatory
+      - ${GOBLIN_DOCKER_CONFIG:-/home/sarah/.docker}:/root/.docker:ro
+
+    environment:
+      - JENKINS_OPTS=--prefix=/jenkins
+
+volumes:
+  jenkins_home:
+    external: true
+    name: ${JENKINS_HOME_VOLUME:?Set JENKINS_HOME_VOLUME to the existing Jenkins Docker volume name}
