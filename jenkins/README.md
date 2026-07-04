@@ -2,13 +2,13 @@
 
 This directory owns the shared Jenkins runtime for the Goblin platform.
 
-Application repositories continue to own application-specific pipeline definitions, deployment scripts, release checks, and application Kubernetes resources.
+Application repositories continue to own application-specific pipelines, deployment scripts, release checks, and application Kubernetes resources.
 
-## Current migration status
+## Migration status
 
-This runtime definition is staged for a controlled ownership migration from `goblin-observatory/infra/jenkins`.
+This runtime is staged for a controlled ownership move from `goblin-observatory/infra/jenkins`.
 
-Do not switch the live Jenkins service to this Compose file until the preflight checks below have been completed.
+Do not switch the live Jenkins service to this Compose file until the checks below are complete.
 
 The migration must preserve:
 
@@ -17,95 +17,83 @@ The migration must preserve:
 - Jenkins URL prefix `/jenkins`
 - existing Jenkins home data
 - existing credentials, plugins, jobs, and history
-- current Observatory repository access required by live jobs
+- Observatory repository access required by current jobs
 
-Kubernetes client tooling is intentionally out of scope here and is tracked separately.
+Kubernetes client tooling is tracked separately.
 
-## Why the Jenkins home volume is explicit
+## Confirmed live settings
 
-Moving a Compose file can change the Compose project name. A Compose-managed named volume may therefore resolve to a different Docker volume after the file moves to another repository.
+Inspection of the running container confirmed:
 
-To prevent Jenkins accidentally starting with a fresh empty home, this Compose file requires the existing Docker volume name to be supplied explicitly through `JENKINS_HOME_VOLUME`.
+- image `goblin-jenkins:local`
+- container name `goblin-jenkins`
+- existing Docker volume mounted at `/var/jenkins_home`
+- host port `8081` mapped to container port `8080`
+- host port `50000` mapped to container port `50000`
+- `JENKINS_OPTS=--prefix=/jenkins`
+- Observatory is mounted at the same host-specific path inside the container
+- current jobs use that container path
 
-## Preflight checks on the Jenkins host
+Exact local paths and the existing volume name must be supplied locally and are not committed here.
 
-### 1. Confirm the current container
+## Required local configuration
 
-```bash
-docker ps --filter name=goblin-jenkins
-```
-
-### 2. Discover the mounted Jenkins home volume
-
-```bash
-docker inspect goblin-jenkins \
-  --format '{{range .Mounts}}{{if eq .Destination "/var/jenkins_home"}}{{.Name}}{{end}}{{end}}'
-```
-
-Record the returned volume name. Do not guess it.
-
-### 3. Inspect all current mounts
+Copy the example:
 
 ```bash
-docker inspect goblin-jenkins \
-  --format '{{range .Mounts}}{{println .Type .Source "->" .Destination}}{{end}}'
+cp jenkins/.env.example jenkins/.env
 ```
 
-This is required because the repository definition mounts Observatory at `/workspace/goblin-observatory`, while the currently configured live jobs have been observed using `/home/sarah/goblin-observatory`.
+Set:
 
-Do not cut over until that difference is understood.
+```text
+JENKINS_HOME_VOLUME=
+GOBLIN_OBSERVATORY_REPO=
+GOBLIN_OBSERVATORY_CONTAINER_PATH=
+GOBLIN_DOCKER_CONFIG=
+```
 
-### 4. Record current container settings
+`GOBLIN_OBSERVATORY_CONTAINER_PATH` must match the path used by current Jenkins jobs.
+
+Do not commit `jenkins/.env`.
+
+## Validate without starting Jenkins
 
 ```bash
-docker inspect goblin-jenkins > /tmp/goblin-jenkins-before-migration.json
+docker compose --env-file jenkins/.env -f jenkins/docker-compose.yml config
 ```
 
-Keep this local. Do not commit the inspection output because it may contain host-specific details.
+Confirm the rendered configuration preserves:
 
-## Validate the staged Compose definition
-
-Set the discovered existing volume name:
-
-```bash
-export JENKINS_HOME_VOLUME=<existing-volume-name>
-```
-
-Optionally set host paths when they differ from defaults:
-
-```bash
-export GOBLIN_OBSERVATORY_REPO=<host-path-to-goblin-observatory>
-export GOBLIN_DOCKER_CONFIG=<host-path-to-docker-config>
-```
-
-Render the effective configuration without starting anything:
-
-```bash
-docker compose -f jenkins/docker-compose.yml config
-```
+1. the existing Jenkins home volume
+2. the Observatory source path
+3. the Observatory container destination used by current jobs
+4. read-only Docker config at `/root/.docker`
+5. ports `8081:8080` and `50000:50000`
+6. the `/jenkins` prefix
 
 ## Cutover rule
 
-Do not run `docker compose up` from this repository until:
+Do not run the new Compose definition until:
 
-1. the existing Jenkins home volume name is confirmed
-2. current live mounts are confirmed
-3. the live job repository path mismatch is resolved or deliberately preserved
-4. rollback steps are ready
+1. local values are populated from the live host
+2. the rendered configuration has been reviewed
+3. rollback steps are ready
+4. current jobs and history have been checked
 
 ## Rollback
 
-The original runtime definition should remain available in `goblin-observatory` until the new ownership location has been proven on the live host.
+Keep the original runtime definition in `goblin-observatory` until the new ownership location has been proven.
 
 If cutover fails:
 
 1. stop the newly managed container without deleting the Jenkins home volume
 2. restore the previous runtime command from the Observatory repository
 3. confirm `goblin-jenkins` starts with the same Jenkins home volume
-4. verify jobs and history before continuing
+4. verify jobs and history
 
 Never use `docker compose down -v` during this migration.
 
 ## Related decisions
 
-See `docs/architecture/decisions/` for the Jenkins topology and ownership decisions.
+See `docs/architecture/decisions/`.
