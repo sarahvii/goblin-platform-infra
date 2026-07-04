@@ -4,13 +4,11 @@ This directory owns the shared Jenkins runtime for the Goblin platform.
 
 Application repositories continue to own application-specific pipelines, deployment scripts, release checks, and application Kubernetes resources.
 
-## Migration status
+## Current state
 
-This runtime is staged for a controlled ownership move from `goblin-observatory/infra/jenkins`.
+The live Jenkins container is managed from this repository.
 
-Do not switch the live Jenkins service to this Compose file until the checks below are complete.
-
-The migration must preserve:
+The runtime preserves:
 
 - container name `goblin-jenkins`
 - host ports `8081` and `50000`
@@ -21,22 +19,24 @@ The migration must preserve:
 
 Kubernetes client tooling is tracked separately.
 
-## Confirmed live settings
+## Image definition
 
-Inspection of the running container confirmed:
+`jenkins/Dockerfile` defines the custom Jenkins image used by this runtime.
 
-- image `goblin-jenkins:local`
-- container name `goblin-jenkins`
-- existing Docker volume mounted at `/var/jenkins_home`
-- host port `8081` mapped to container port `8080`
-- host port `50000` mapped to container port `50000`
-- `JENKINS_OPTS=--prefix=/jenkins`
-- Observatory is mounted at the same host-specific path inside the container
-- current jobs use that container path
+The image currently:
 
-Exact local paths and the existing volume name must be supplied locally and are not committed here.
+- starts from `jenkins/jenkins:lts-jdk17`
+- installs Docker CLI tooling
+- installs the Docker Compose plugin
+- returns to the Jenkins user after package installation
 
-## Required local configuration
+The Compose service builds from this Dockerfile and tags the result as:
+
+```text
+goblin-jenkins:local
+```
+
+## Local runtime configuration
 
 Copy the example:
 
@@ -57,7 +57,7 @@ GOBLIN_DOCKER_CONFIG=
 
 Do not commit `jenkins/.env`.
 
-## Validate without starting Jenkins
+## Validate configuration without starting Jenkins
 
 ```bash
 docker compose --env-file jenkins/.env -f jenkins/docker-compose.yml config
@@ -72,27 +72,65 @@ Confirm the rendered configuration preserves:
 5. ports `8081:8080` and `50000:50000`
 6. the `/jenkins` prefix
 
-## Cutover rule
+## Build the platform-owned image without restarting Jenkins
 
-Do not run the new Compose definition until:
+Record the current running image first:
 
-1. local values are populated from the live host
-2. the rendered configuration has been reviewed
-3. rollback steps are ready
-4. current jobs and history have been checked
+```bash
+docker inspect goblin-jenkins --format '{{.Image}}'
+```
+
+Build the image from this repository:
+
+```bash
+docker compose \
+  --env-file jenkins/.env \
+  -f jenkins/docker-compose.yml \
+  build jenkins
+```
+
+Do not run `up` immediately after the build.
+
+Inspect the newly tagged image:
+
+```bash
+docker image inspect goblin-jenkins:local --format '{{.Id}}'
+```
+
+Validate required tooling without touching the live container:
+
+```bash
+docker run --rm goblin-jenkins:local docker version --client
+```
+
+```bash
+docker run --rm goblin-jenkins:local docker compose version
+```
+
+Only recreate the live service after reviewing the new image and preparing rollback.
+
+## Recreate the runtime
+
+```bash
+docker compose \
+  --env-file jenkins/.env \
+  -f jenkins/docker-compose.yml \
+  up -d --force-recreate
+```
+
+After recreate, verify:
+
+- Jenkins login returns HTTP 200
+- existing jobs remain present
+- job configuration and build history remain intact
+- the existing Jenkins home volume is still mounted
+- Compose metadata points to this repository
 
 ## Rollback
 
-Keep the original runtime definition in `goblin-observatory` until the new ownership location has been proven.
+Do not use `docker compose down -v`.
 
-If cutover fails:
-
-1. stop the newly managed container without deleting the Jenkins home volume
-2. restore the previous runtime command from the Observatory repository
-3. confirm `goblin-jenkins` starts with the same Jenkins home volume
-4. verify jobs and history
-
-Never use `docker compose down -v` during this migration.
+Keep the previous image ID recorded before rebuilding. If the new image fails validation, retag the previous image ID as `goblin-jenkins:local` and recreate the service from this repository using the same external Jenkins home volume.
 
 ## Related decisions
 
